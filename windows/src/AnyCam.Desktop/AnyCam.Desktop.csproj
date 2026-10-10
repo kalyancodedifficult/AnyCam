@@ -1,11 +1,35 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.22000.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>AnyCam</AssemblyName>
+    <RootNamespace>AnyCam.Desktop</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF Fluent theme (ThemeMode) is marked experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AnyCam.Core\AnyCam.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Ship the virtual camera (built by windows/vcam with CMake) and its install scripts next to AnyCam.exe. -->
+  <PropertyGroup>
+    <VCamBuildDir Condition="'$(VCamBuildDir)' == ''">$(MSBuildThisFileDirectory)..\..\vcam\build\</VCamBuildDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\scripts\install-virtual-camera.ps1" Link="install-virtual-camera.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\uninstall-virtual-camera.ps1" Link="uninstall-virtual-camera.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(VCamBuildDir)AnyCamVCam.dll" Link="VirtualCamera\AnyCamVCam.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(VCamBuildDir)AnyCamVCam.dll')" />
+    <None Include="$(VCamBuildDir)AnyCamVCamCtl.exe" Link="VirtualCamera\AnyCamVCamCtl.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(VCamBuildDir)AnyCamVCamCtl.exe')" />
+  </ItemGroup>
 
 </Project>

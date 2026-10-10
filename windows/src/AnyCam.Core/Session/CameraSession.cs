@@ -507,7 +507,13 @@ public sealed class CameraSession : IAsyncDisposable
         get => _audioSettings;
         set
         {
+            var previous = _audioSettings;
             _audioSettings = value;
+            if (_audio.IsPlaying && previous with { Volume = value.Volume } == value)
+            {
+                _audio.Volume = value.Volume; // volume only: no restart (no glitch)
+                return;
+            }
             RestartAudio();
         }
     }

@@ -1,12 +1,541 @@
-﻿<Window x:Class="AnyCam.Desktop.MainWindow"
+<Window x:Class="AnyCam.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:AnyCam.Desktop"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        xmlns:c="clr-namespace:AnyCam.Desktop.Controls"
+        Title="AnyCam" Width="1360" Height="860" MinWidth="1040" MinHeight="660"
+        Background="{StaticResource Bg0}" Foreground="{StaticResource Text}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
+        UseLayoutRounding="True">
 
+    <Window.Resources>
+        <!-- Status dot color by state. -->
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Fill" Value="{StaticResource TextFaint}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="connecting">
+                    <Setter Property="Fill" Value="{StaticResource Warn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="connected">
+                    <Setter Property="Fill" Value="{StaticResource Ok}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="live">
+                    <Setter Property="Fill" Value="{StaticResource Live}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="TabText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="2,0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============================== Top bar ============================== -->
+        <Border Grid.Row="0" Background="{StaticResource Bg1}" BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1" Padding="16,10">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="AnyCam" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Border Style="{StaticResource Pill}" Margin="16,0,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Style="{StaticResource StatusDot}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StatusText}" FontSize="12" VerticalAlignment="Center" MaxWidth="520" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DevicesHint}" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,12,0" MaxWidth="360"
+                               Visibility="{Binding DevicesHint, Converter={StaticResource NotEmptyToVisibility}}" />
+                    <ComboBox Width="250" ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}"
+                              DisplayMemberPath="DisplayName" IsEnabled="{Binding IsActive, Converter={StaticResource InverseBool}}" />
+                    <Button Margin="8,0,0,0" MinWidth="96" Content="{Binding ConnectButtonText}" Command="{Binding ToggleConnectCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource AccentButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource Bg3}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Margin="8,0,0,0" Style="{StaticResource ToolPushButton}" Content="Connect by IP…" Click="ConnectByIp_Click" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ============================== Content ============================== -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="390" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Preview -->
+            <Grid Grid.Column="0" Margin="16,16,16,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border x:Name="PreviewFrame" Background="Black">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="BorderBrush" Value="{StaticResource Stroke}" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusKind}" Value="live">
+                                    <Setter Property="BorderBrush" Value="{StaticResource Live}" />
+                                    <Setter Property="BorderThickness" Value="2" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <c:PreviewHost x:Name="Preview" />
+                </Border>
+
+                <DockPanel Grid.Row="1" Margin="0,10,0,0" LastChildFill="False">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <ToggleButton Style="{StaticResource ToolToggle}" Content="Grid" IsChecked="{Binding Picture.ShowGrid}" ToolTip="Rule-of-thirds grid (preview only)" />
+                        <ToggleButton Style="{StaticResource ToolToggle}" Margin="6,0,0,0" Content="Zebras" IsChecked="{Binding Picture.ShowZebras}" ToolTip="Stripes over overexposed highlights (preview only)" />
+                        <ToggleButton Style="{StaticResource ToolToggle}" Margin="6,0,0,0" Content="Focus peaking" IsChecked="{Binding Picture.ShowPeaking}" ToolTip="Highlights sharp edges in red (preview only)" />
+                        <ToggleButton Style="{StaticResource ToolToggle}" Margin="6,0,0,0" Content="Safe areas" IsChecked="{Binding Picture.ShowSafeAreas}" ToolTip="90% action-safe and 80% title-safe frames" />
+                        <ToggleButton Style="{StaticResource ToolToggle}" Margin="6,0,0,0" Content="9:16 guide" IsChecked="{Binding Picture.ShowVerticalGuide}" ToolTip="Shows what a vertical Shorts/Reels crop would keep" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Right" Style="{StaticResource Hint}" VerticalAlignment="Center"
+                               Text="Click the picture to focus · scroll to zoom" />
+                </DockPanel>
+            </Grid>
+
+            <!-- Sidebar -->
+            <Border Grid.Column="1" Background="{StaticResource Bg1}" BorderBrush="{StaticResource Stroke}" BorderThickness="1,0,0,0">
+                <TabControl Background="Transparent" BorderThickness="0" Padding="0" Margin="0,6,0,0">
+
+                    <!-- ===================== Camera (phone) ===================== -->
+                    <TabItem>
+                        <TabItem.Header>
+                            <TextBlock Text="Camera" Style="{StaticResource TabText}" />
+                        </TabItem.Header>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,10,14,10" DataContext="{Binding Camera}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
+                                           Text="These settings run on the iPhone camera itself, so they look like a real camera, not a filter."
+                                           Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVisibility}}" />
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Lens" />
+                                        <ListBox ItemsSource="{Binding Lenses}" SelectedItem="{Binding SelectedLens}" Background="Transparent" BorderThickness="0" Padding="0"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ListBox.ItemsPanel>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                                    <Setter Property="Cursor" Value="Hand" />
+                                                    <Setter Property="ToolTip" Value="{Binding Name}" />
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <Border x:Name="Chrome" CornerRadius="6" Padding="14,7" Margin="0,0,6,6" Background="{StaticResource Bg3}">
+                                                                    <TextBlock x:Name="Label" Text="{Binding ShortLabel}" FontWeight="SemiBold" Foreground="{StaticResource TextDim}" />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Text}" />
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsSelected" Value="True">
+                                                                        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource Accent}" />
+                                                                        <Setter TargetName="Label" Property="Foreground" Value="White" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                        </ListBox>
+                                        <TextBlock Style="{StaticResource Hint}" Text="Connect your phone to choose a lens." Margin="0,4,0,0"
+                                                   Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Video format" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="10" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Resolution" />
+                                                <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Frame rate" />
+                                                <ComboBox ItemsSource="{Binding FrameRates}" SelectedItem="{Binding FrameRate}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="10" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Codec" />
+                                                <ComboBox ItemsSource="{Binding Codecs}" SelectedItem="{Binding Codec}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Orientation" />
+                                                <ComboBox ItemsSource="{Binding Orientations}" SelectedItem="{Binding Orientation}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <c:SliderRow Margin="0,10,0,0" Label="Bitrate" ValueText="{Binding BitrateText}" Value="{Binding BitrateMbps}"
+                                                     Minimum="2" Maximum="80" TickFrequency="1" SmallChange="1" IsSnapToTickEnabled="True" DefaultValue="16" />
+                                        <CheckBox Content="Send the phone's microphone" IsChecked="{Binding SendAudio}" Margin="0,4,0,0" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                   Text="Tip: for 50 Hz lighting (India, Europe) use 25 or 50 fps, or 30 fps with a 1/50 or 1/100 shutter, to avoid flicker." />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Zoom" />
+                                        <c:SliderRow Label="Optical / sensor zoom" ValueText="{Binding ZoomText}" Value="{Binding Zoom}"
+                                                     Minimum="{Binding MinZoom}" Maximum="{Binding MaxZoom}" TickFrequency="0.1" SmallChange="0.05" DefaultValue="1" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Focus" />
+                                        <Border Style="{StaticResource SegmentGroup}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="FocusMode" Content="Auto" IsChecked="{Binding FocusMode, Converter={StaticResource Equals}, ConverterParameter=continuous}" />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="FocusMode" Content="Locked" IsChecked="{Binding FocusMode, Converter={StaticResource Equals}, ConverterParameter=locked}" />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="FocusMode" Content="Manual" IsChecked="{Binding FocusMode, Converter={StaticResource Equals}, ConverterParameter=manual}"
+                                                             IsEnabled="{Binding ManualFocusSupported}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <c:SliderRow Margin="0,10,0,0" Label="Focus distance" ValueText="{Binding LensPositionText}" Value="{Binding LensPosition}"
+                                                     Minimum="0" Maximum="1" TickFrequency="0.01" SmallChange="0.005" IsEnabled="{Binding ManualFocusSupported}" />
+                                        <CheckBox Content="Smooth autofocus (no hunting jumps in video)" IsChecked="{Binding SmoothFocus}" />
+                                        <CheckBox Content="Prefer faces for focus and exposure" IsChecked="{Binding FaceDriven}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Exposure" />
+                                        <Border Style="{StaticResource SegmentGroup}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="ExposureMode" Content="Auto" IsChecked="{Binding ExposureMode, Converter={StaticResource Equals}, ConverterParameter=auto}" />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="ExposureMode" Content="Locked" IsChecked="{Binding ExposureMode, Converter={StaticResource Equals}, ConverterParameter=locked}" />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="ExposureMode" Content="Shutter priority" IsChecked="{Binding ExposureMode, Converter={StaticResource Equals}, ConverterParameter=shutterPriority}"
+                                                             ToolTip="Fixed shutter speed, ISO adjusts automatically. Use 1/50 or 1/100 under 50 Hz lights to remove flicker." />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="ExposureMode" Content="Manual" IsChecked="{Binding ExposureMode, Converter={StaticResource Equals}, ConverterParameter=manual}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <c:SliderRow Margin="0,10,0,0" Label="Exposure compensation" ValueText="{Binding EvText}" Value="{Binding Ev}"
+                                                     Minimum="-3" Maximum="3" TickFrequency="0.1" SmallChange="0.1" IsSnapToTickEnabled="True" DefaultValue="0"
+                                                     Visibility="{Binding ExposureMode, Converter={StaticResource EqualsToVisibility}, ConverterParameter=auto|shutterPriority}" />
+                                        <StackPanel Visibility="{Binding ExposureMode, Converter={StaticResource EqualsToVisibility}, ConverterParameter=manual|shutterPriority}">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Shutter speed" />
+                                            <ComboBox ItemsSource="{Binding Shutters}" SelectedItem="{Binding Shutter}" HorizontalAlignment="Left" MinWidth="140" />
+                                        </StackPanel>
+                                        <c:SliderRow Margin="0,8,0,0" Label="ISO" ValueText="{Binding IsoText}" Value="{Binding Iso}"
+                                                     Minimum="{Binding MinIso}" Maximum="{Binding MaxIso}" TickFrequency="5" SmallChange="5"
+                                                     Visibility="{Binding ExposureMode, Converter={StaticResource EqualsToVisibility}, ConverterParameter=manual}" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="{Binding ExposureReadout}" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="White balance" />
+                                        <Border Style="{StaticResource SegmentGroup}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="WbMode" Content="Auto" IsChecked="{Binding WbMode, Converter={StaticResource Equals}, ConverterParameter=auto}" />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="WbMode" Content="Locked" IsChecked="{Binding WbMode, Converter={StaticResource Equals}, ConverterParameter=locked}" />
+                                                <RadioButton Style="{StaticResource SegmentRadio}" GroupName="WbMode" Content="Kelvin" IsChecked="{Binding WbMode, Converter={StaticResource Equals}, ConverterParameter=manual}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Style="{StaticResource ToolPushButton}" Content="Tungsten 3200K" Command="{Binding WhiteBalancePresetCommand}" CommandParameter="3200" />
+                                            <Button Style="{StaticResource ToolPushButton}" Margin="6,0,0,0" Content="LED 4500K" Command="{Binding WhiteBalancePresetCommand}" CommandParameter="4500" />
+                                            <Button Style="{StaticResource ToolPushButton}" Margin="6,0,0,0" Content="Day 5600K" Command="{Binding WhiteBalancePresetCommand}" CommandParameter="5600" />
+                                        </StackPanel>
+                                        <c:SliderRow Margin="0,10,0,0" Label="Temperature" ValueText="{Binding TemperatureText}" Value="{Binding Temperature}"
+                                                     Minimum="2500" Maximum="8000" TickFrequency="50" SmallChange="50" IsSnapToTickEnabled="True" />
+                                        <c:SliderRow Label="Tint" ValueText="{Binding TintText}" Value="{Binding Tint}"
+                                                     Minimum="-50" Maximum="50" TickFrequency="1" SmallChange="1" IsSnapToTickEnabled="True" DefaultValue="0" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="{Binding WbReadout}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="More" />
+                                        <c:SliderRow Label="Torch (fill light)" ValueText="{Binding TorchText}" Value="{Binding Torch}"
+                                                     Minimum="0" Maximum="1" TickFrequency="0.05" SmallChange="0.05" IsSnapToTickEnabled="True" DefaultValue="0"
+                                                     Visibility="{Binding HasTorch, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Stabilization" />
+                                        <ComboBox ItemsSource="{Binding StabilizationModes}" SelectedItem="{Binding Stabilization}" HorizontalAlignment="Left" MinWidth="180" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,8" Text="Turn stabilization off on a tripod: it adds delay and crops the picture." />
+                                        <CheckBox Content="Video HDR" IsChecked="{Binding Hdr}" />
+                                        <CheckBox Content="Low-light boost" IsChecked="{Binding LowLightBoost}" Margin="0,4,0,0" />
+                                        <CheckBox Content="Dim the phone screen (saves battery and heat)" IsChecked="{Binding DimPhone}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ===================== Picture (PC) ===================== -->
+                    <TabItem>
+                        <TabItem.Header>
+                            <TextBlock Text="Picture" Style="{StaticResource TabText}" />
+                        </TabItem.Header>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,10,14,10" DataContext="{Binding Picture}">
+                            <StackPanel>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Framing" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton Style="{StaticResource ToolToggle}" Content="Mirror" IsChecked="{Binding Mirror}" />
+                                            <ToggleButton Style="{StaticResource ToolToggle}" Margin="6,0,0,0" Content="Flip" IsChecked="{Binding Flip}" />
+                                            <Button Style="{StaticResource ToolPushButton}" Margin="6,0,0,0" Content="⟲" ToolTip="Rotate left" Command="{Binding RotateLeftCommand}" />
+                                            <Button Style="{StaticResource ToolPushButton}" Margin="6,0,0,0" Content="⟳" ToolTip="Rotate right" Command="{Binding RotateRightCommand}" />
+                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding RotationText}" Foreground="{StaticResource TextDim}" />
+                                        </StackPanel>
+                                        <c:SliderRow Margin="0,10,0,0" Label="Digital zoom (punch-in)" ValueText="{Binding DigitalZoomText}" Value="{Binding DigitalZoom}"
+                                                     Minimum="1" Maximum="4" TickFrequency="0.05" SmallChange="0.05" DefaultValue="1" />
+                                        <c:SliderRow Label="Pan horizontal" ValueText="{Binding PanXText}" Value="{Binding PanX}" Minimum="-1" Maximum="1" TickFrequency="0.01" DefaultValue="0" />
+                                        <c:SliderRow Label="Pan vertical" ValueText="{Binding PanYText}" Value="{Binding PanY}" Minimum="-1" Maximum="1" TickFrequency="0.01" DefaultValue="0" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="Send 4K from the phone and output 1080p to punch in with no visible quality loss." />
+                                        <Button Style="{StaticResource ToolPushButton}" Content="Reset framing" HorizontalAlignment="Left" Margin="0,8,0,0" Command="{Binding ResetFramingCommand}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Color" />
+                                        <c:SliderRow Label="Exposure" ValueText="{Binding ExposureText}" Value="{Binding Exposure}" Minimum="-2" Maximum="2" TickFrequency="0.05" DefaultValue="0" />
+                                        <c:SliderRow Label="Contrast" ValueText="{Binding ContrastText}" Value="{Binding Contrast}" Minimum="0.5" Maximum="1.5" TickFrequency="0.01" DefaultValue="1" />
+                                        <c:SliderRow Label="Saturation" ValueText="{Binding SaturationText}" Value="{Binding Saturation}" Minimum="0" Maximum="2" TickFrequency="0.01" DefaultValue="1" />
+                                        <c:SliderRow Label="Vibrance" ValueText="{Binding VibranceText}" Value="{Binding Vibrance}" Minimum="-1" Maximum="1" TickFrequency="0.01" DefaultValue="0" />
+                                        <c:SliderRow Label="Warmth" ValueText="{Binding TemperatureText}" Value="{Binding Temperature}" Minimum="-1" Maximum="1" TickFrequency="0.01" DefaultValue="0" />
+                                        <c:SliderRow Label="Tint" ValueText="{Binding TintText}" Value="{Binding Tint}" Minimum="-1" Maximum="1" TickFrequency="0.01" DefaultValue="0" />
+                                        <c:SliderRow Label="Gamma" ValueText="{Binding GammaText}" Value="{Binding Gamma}" Minimum="0.5" Maximum="2" TickFrequency="0.01" DefaultValue="1" />
+                                        <c:SliderRow Label="Brightness" ValueText="{Binding BrightnessText}" Value="{Binding Brightness}" Minimum="-0.25" Maximum="0.25" TickFrequency="0.005" DefaultValue="0" />
+                                        <Button Style="{StaticResource ToolPushButton}" Content="Reset color" HorizontalAlignment="Left" Margin="0,4,0,0" Command="{Binding ResetColorCommand}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Look (3D LUT)" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="Remove" Margin="6,0,0,0" Command="{Binding RemoveLutCommand}"
+                                                    Visibility="{Binding HasLut, Converter={StaticResource BoolToVisibility}}" />
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="Load .cube…" Command="{Binding LoadLutCommand}" />
+                                            <TextBlock Text="{Binding LutName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        </DockPanel>
+                                        <c:SliderRow Margin="0,8,0,0" Label="Strength" ValueText="{Binding LutAmountText}" Value="{Binding LutAmount}" Minimum="0" Maximum="1" TickFrequency="0.01" DefaultValue="1"
+                                                     Visibility="{Binding HasLut, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="Applied on the GPU to the preview, the virtual camera and snapshots." />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ===================== Output ===================== -->
+                    <TabItem>
+                        <TabItem.Header>
+                            <TextBlock Text="Output" Style="{StaticResource TabText}" />
+                        </TabItem.Header>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,10,14,10">
+                            <StackPanel>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Virtual camera" />
+                                        <TextBlock Text="{Binding VirtualCameraText}" TextWrapping="Wrap" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                   Text="In Teams, Google Meet, Zoom, Discord or OBS, choose the camera named “AnyCam”. Apps pick the size they need: 1080p, 720p, 4K or 1080×1920 vertical." />
+                                        <Button Style="{StaticResource AccentButton}" HorizontalAlignment="Left" Margin="0,10,0,0" Content="Install virtual camera"
+                                                Command="{Binding InstallVirtualCameraCommand}"
+                                                Visibility="{Binding VirtualCameraNeedsInstall, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}" DataContext="{Binding Picture}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Program size" />
+                                        <ComboBox ItemsSource="{Binding OutputSizes}" SelectedItem="{Binding OutputSize}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Border Style="{StaticResource SegmentGroup}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Style="{StaticResource SegmentRadio}" GroupName="Fit" Content="Fill (crop)" IsChecked="{Binding Fill}" />
+                                                    <RadioButton Style="{StaticResource SegmentRadio}" GroupName="Fit" Content="Fit (bars)" IsChecked="{Binding Fill, Converter={StaticResource InverseBool}}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                   Text="The program is what the preview shows and what apps receive. Pick 1080×1920 to make vertical videos from a horizontal phone (crop), or set the phone to Portrait." />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Recording" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="Records the phone's original video and audio to MP4: no re-encoding, so full quality and almost no CPU." />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Recordings folder" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="Open" Margin="6,0,0,0" Command="{Binding OpenRecordingFolderCommand}" />
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="Change…" Margin="6,0,0,0" Command="{Binding BrowseRecordingFolderCommand}" />
+                                            <TextBlock Text="{Binding RecordingFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding RecordingFolder}" />
+                                        </DockPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Photos and snapshots folder" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="Open" Margin="6,0,0,0" Command="{Binding OpenPhotoFolderCommand}" />
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="Change…" Margin="6,0,0,0" Command="{Binding BrowsePhotoFolderCommand}" />
+                                            <TextBlock Text="{Binding PhotoFolder}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding PhotoFolder}" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Connection" />
+                                        <CheckBox Content="Reconnect to the last phone automatically" IsChecked="{Binding AutoConnect}" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                   Text="USB is the most reliable and has the lowest delay. It needs Apple Mobile Device Support, which comes with iTunes or the Apple Devices app." />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ===================== Audio ===================== -->
+                    <TabItem>
+                        <TabItem.Header>
+                            <TextBlock Text="Audio" Style="{StaticResource TabText}" />
+                        </TabItem.Header>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,10,14,10" DataContext="{Binding Audio}">
+                            <StackPanel>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Phone microphone" />
+                                        <CheckBox Content="Play the phone's microphone on this PC" IsChecked="{Binding Enabled}" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Output device" />
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource ToolPushButton}" Content="↻" ToolTip="Refresh devices" Margin="6,0,0,0" Command="{Binding RefreshDevicesCommand}" />
+                                            <ComboBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" DisplayMemberPath="Name" />
+                                        </DockPanel>
+                                        <c:SliderRow Margin="0,10,0,0" Label="Volume" ValueText="{Binding VolumeText}" Value="{Binding Volume}" Minimum="0" Maximum="100" TickFrequency="1" DefaultValue="100" />
+                                        <c:SliderRow Label="Audio delay (lip sync)" ValueText="{Binding DelayText}" Value="{Binding DelayMs}" Minimum="0" Maximum="500" TickFrequency="10" SmallChange="10" IsSnapToTickEnabled="True" DefaultValue="0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource CardTitle}" Text="Use the iPhone as a microphone in other apps" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Windows doesn't let apps create a virtual microphone without a driver. Install the free VB-Audio Virtual Cable, choose “CABLE Input” as the output device above, then pick “CABLE Output” as the microphone in Teams, Zoom or OBS." />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                   Text="Recordings made in AnyCam always include the phone's audio, in sync." />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+
+        <!-- ============================== Bottom bar ============================== -->
+        <Border Grid.Row="2" Background="{StaticResource Bg1}" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="16,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Command="{Binding ToggleRecordCommand}" MinWidth="104" ToolTip="Record the original phone video to MP4">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource ToolPushButton}">
+                                <Setter Property="Content" Value="● Record" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                        <Setter Property="Content" Value="■ Stop" />
+                                        <Setter Property="Background" Value="{StaticResource Live}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <TextBlock Text="{Binding RecordingTime}" Foreground="{StaticResource Live}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <Button Style="{StaticResource ToolPushButton}" Margin="10,0,0,0" Content="Photo" ToolTip="Full-resolution photo from the phone camera (great for thumbnails)" Command="{Binding CapturePhotoCommand}" />
+                    <Button Style="{StaticResource ToolPushButton}" Margin="6,0,0,0" Content="Snapshot" ToolTip="Save the processed picture as PNG" Command="{Binding SaveSnapshotCommand}" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding StatsText}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Notification, Converter={StaticResource NotEmptyToVisibility}}" Value="Visible">
+                                    <Setter Property="Text" Value="{Binding Notification}" />
+                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding PhoneText}" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <Border Style="{StaticResource Pill}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{StaticResource TextFaint}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding VirtualCameraKind}" Value="live">
+                                                <Setter Property="Fill" Value="{StaticResource Live}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding VirtualCameraKind}" Value="missing">
+                                                <Setter Property="Fill" Value="{StaticResource Warn}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding VirtualCameraText}" FontSize="12" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
