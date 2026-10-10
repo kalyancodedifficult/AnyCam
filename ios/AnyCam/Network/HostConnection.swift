@@ -3,8 +3,8 @@ import Network
 
 /// One connected PC. Reads framed packets, sends control and media packets, and applies the
 /// flow control from docs/PROTOCOL.md so latency stays bounded on congested Wi-Fi.
-/// All state lives on the server's network queue.
-final class HostConnection {
+/// All state lives on the server's network queue (hence `@unchecked Sendable`).
+final class HostConnection: @unchecked Sendable {
     let connection: NWConnection
     let queue: DispatchQueue
     let id = UUID()

@@ -74,8 +74,9 @@ dotnet run --project windows/src/AnyCam.Desktop
 
 ## Status
 
-v0.1, early but working end to end. Verified on Windows 11 with the emulator (hardware decode, virtual camera at 30 fps, recording, overlays).
-The iPhone app compiles in CI and needs real-device testing; please open issues with your iPhone model and what you see.
+v0.1, early but working end to end. Verified on Windows 11 with the emulator: hardware decode, virtual camera at a steady 30 fps
+in a Media Foundation client and in Microsoft Edge (`getUserMedia`, the same path Google Meet and the new Teams use), recording, photos, overlays.
+The iPhone app builds in CI (Xcode 26) and needs real-device testing; please open issues with your iPhone model and what you see.
 
 ## Acknowledgements
 

@@ -12,8 +12,8 @@ protocol CameraControllerDelegate: AnyObject {
     func camera(_ camera: CameraController, event level: String, code: String, message: String)
 }
 
-/// Owns the AVCaptureSession. All configuration happens on `sessionQueue`.
-final class CameraController: NSObject {
+/// Owns the AVCaptureSession. All configuration happens on `sessionQueue` (hence `@unchecked Sendable`).
+final class CameraController: NSObject, @unchecked Sendable {
     let session = AVCaptureSession()
     let sessionQueue = DispatchQueue(label: "anycam.session", qos: .userInitiated)
     weak var delegate: CameraControllerDelegate?
