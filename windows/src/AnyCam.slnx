@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AnyCam.Core/AnyCam.Core.csproj" />
+  <Project Path="AnyCam.Desktop/AnyCam.Desktop.csproj" />
+  <Project Path="AnyCam.Emulator/AnyCam.Emulator.csproj" />
+  <Project Path="AnyCam.Tests/AnyCam.Tests.csproj" />
+</Solution>
