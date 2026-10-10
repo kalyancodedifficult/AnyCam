@@ -89,7 +89,7 @@ public sealed class MediaEngine : IDisposable
         set
         {
             _settings = value;
-            _wake.Set();
+            Wake();
         }
     }
 
@@ -106,8 +106,13 @@ public sealed class MediaEngine : IDisposable
             }
             Post(() => _waitForKeyframe = true);
         }
+        if (_stopping)
+        {
+            packet.Release();
+            return;
+        }
         _packets.Enqueue(packet);
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>The camera announced a (new) bitstream format.</summary>
@@ -159,7 +164,7 @@ public sealed class MediaEngine : IDisposable
     public Task<(byte[] Pixels, int Width, int Height)?> CaptureProgramAsync()
     {
         var completion = new TaskCompletionSource<(byte[], int, int)?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Post(() =>
+        var posted = Post(() =>
         {
             try
             {
@@ -170,6 +175,8 @@ public sealed class MediaEngine : IDisposable
                 completion.SetException(ex);
             }
         });
+        if (!posted)
+            completion.TrySetResult(null);
         return completion.Task;
     }
 
@@ -193,10 +200,25 @@ public sealed class MediaEngine : IDisposable
         return cameraPoint.X is >= 0 and <= 1 && cameraPoint.Y is >= 0 and <= 1;
     }
 
-    private void Post(Action command)
+    private bool Post(Action command)
     {
+        if (_stopping)
+            return false; // e.g. WPF destroying the preview window after the engine shut down
         _commands.Enqueue(command);
-        _wake.Set();
+        Wake();
+        return true;
+    }
+
+    private void Wake()
+    {
+        try
+        {
+            _wake.Set();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A late call racing Dispose: nothing left to wake.
+        }
     }
 
     // ---------------------------------------------------------------------------------------

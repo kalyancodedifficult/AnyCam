@@ -9,6 +9,7 @@ namespace AnyCam.Desktop;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private bool _closing;
     private bool _disposed;
 
     public MainWindow(MainViewModel viewModel)
@@ -73,11 +74,21 @@ public partial class MainWindow : Window
 
         // Shut down cleanly (finish recordings, release the camera) before the window goes away.
         e.Cancel = true;
+        if (_closing)
+            return; // already shutting down
+        _closing = true;
         SavePlacement();
         IsEnabled = false;
-        await _viewModel.DisposeAsync();
-        _disposed = true;
-        Close();
+        try
+        {
+            await _viewModel.DisposeAsync();
+        }
+        finally
+        {
+            _disposed = true;
+            // Close() can't be called from inside Closing (the dispose above may finish synchronously).
+            _ = Dispatcher.BeginInvoke(new Action(Close));
+        }
     }
 
     private void ConnectByIp_Click(object sender, RoutedEventArgs e)
