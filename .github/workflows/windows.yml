@@ -1,0 +1,53 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: ['windows/**', 'docs/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the zip to GitHub releases on tags
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build virtual camera (C++ / CMake)
+        shell: pwsh
+        run: |
+          cmake -S windows/vcam -B windows/vcam/build -A x64
+          cmake --build windows/vcam/build --config Release --parallel
+          Get-ChildItem windows/vcam/build/Release/AnyCam*
+
+      - name: Unit tests
+        run: dotnet test windows/src/AnyCam.Tests/AnyCam.Tests.csproj -c Release --nologo
+
+      - name: Publish AnyCam Desktop
+        shell: pwsh
+        run: |
+          dotnet publish windows/src/AnyCam.Desktop/AnyCam.Desktop.csproj -c Release -r win-x64 --self-contained true `
+            -p:VCamBuildDir="${{ github.workspace }}/windows/vcam/build/Release/" -o out/AnyCam
+          dotnet publish windows/src/AnyCam.Emulator/AnyCam.Emulator.csproj -c Release -r win-x64 --self-contained false -o out/AnyCam/Tools
+          Copy-Item docs/SETUP.md out/AnyCam/SETUP.md
+          Compress-Archive -Path out/AnyCam/* -DestinationPath AnyCam-Windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnyCam-Windows-x64
+          path: AnyCam-Windows-x64.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AnyCam-Windows-x64.zip

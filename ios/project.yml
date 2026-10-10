@@ -1,0 +1,64 @@
+name: AnyCam
+options:
+  bundleIdPrefix: io.github.kalyancodedifficult
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_PREVIEWS: YES
+
+targets:
+  AnyCam:
+    type: application
+    platform: iOS
+    sources:
+      - path: AnyCam
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.kalyancodedifficult.anycam
+        PRODUCT_NAME: AnyCam
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: AnyCam/Info.plist
+      properties:
+        CFBundleDisplayName: AnyCam
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIApplicationSupportsIndirectInputEvents: true
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIUserInterfaceStyle: Dark
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSCameraUsageDescription: AnyCam sends your camera to AnyCam on your PC so you can use the iPhone as a webcam.
+        NSMicrophoneUsageDescription: AnyCam can send your microphone to your PC together with the video.
+        NSLocalNetworkUsageDescription: AnyCam uses your local network so AnyCam on your PC can find this iPhone and receive the video.
+        NSBonjourServices:
+          - _anycam._tcp
+        ITSAppUsesNonExemptEncryption: false
+
+schemes:
+  AnyCam:
+    build:
+      targets:
+        AnyCam: all
+    run:
+      config: Debug
+    archive:
+      config: Release

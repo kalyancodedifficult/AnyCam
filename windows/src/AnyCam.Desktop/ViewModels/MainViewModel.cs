@@ -189,8 +189,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         if (!_settings.AutoConnect || _autoConnectSuppressed || _session.Status != SessionStatus.Idle)
             return;
-        var target = Devices.FirstOrDefault(d => d.Key == _settings.LastDeviceKey)
-                     ?? (Devices.Count(d => d is UsbEndpoint) == 1 ? Devices.First(d => d is UsbEndpoint) : null);
+        // Only phones that are actually discovered right now (USB or Bonjour), never a remembered manual IP
+        // that may be stale: those reconnect forever and would block connecting to the real phone.
+        var discovered = _discovery.Endpoints;
+        var target = discovered.FirstOrDefault(d => d.Key == _settings.LastDeviceKey)
+                     ?? (discovered.Count(d => d is UsbEndpoint) == 1 ? discovered.First(d => d is UsbEndpoint) : null);
         if (target is not null)
         {
             SelectedDevice = target;

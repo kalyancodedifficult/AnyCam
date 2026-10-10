@@ -1,0 +1,59 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the IPA to GitHub releases on tags
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        working-directory: ios
+        run: |
+          set +e
+          xcodebuild -project AnyCam.xcodeproj -scheme AnyCam -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build > build.log 2>&1
+          status=$?
+          grep -E "error:|\.swift:[0-9]+:[0-9]+: warning:|BUILD (SUCCEEDED|FAILED)" build.log | sort -u | head -200
+          if [ $status -ne 0 ]; then tail -50 build.log; fi
+          exit $status
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R ios/build/Build/Products/Release-iphoneos/AnyCam.app Payload/
+          zip -qry AnyCam-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnyCam-iOS-unsigned
+          path: AnyCam-unsigned.ipa
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AnyCam-unsigned.ipa

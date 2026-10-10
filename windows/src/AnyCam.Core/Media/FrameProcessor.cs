@@ -203,7 +203,7 @@ public sealed unsafe class FrameProcessor : IDisposable
             var data = new SubresourceData(pixels, (uint)(width * 4));
             var description = new Texture2DDescription(Format.B8G8R8A8_UNorm, (uint)width, (uint)height, 1, 1,
                 BindFlags.ShaderResource, ResourceUsage.Immutable, CpuAccessFlags.None, 1, 0, ResourceOptionFlags.None);
-            _slate = _device.CreateTexture2D(ref description, data);
+            _slate = _device.CreateTexture2D(in description, data);
         }
         _slateView = _device.CreateShaderResourceView(_slate, null);
         _slateWidth = width;
@@ -228,7 +228,7 @@ public sealed unsafe class FrameProcessor : IDisposable
             var data = new SubresourceData(values, size * 16, size * size * 16);
             var description = new Texture3DDescription(Format.R32G32B32A32_Float, size, size, size, 1,
                 BindFlags.ShaderResource, ResourceUsage.Immutable, CpuAccessFlags.None, ResourceOptionFlags.None);
-            _lut = _device.CreateTexture3D(ref description, data);
+            _lut = _device.CreateTexture3D(in description, data);
         }
         _lutView = _device.CreateShaderResourceView(_lut, null);
         _lutSize = lut.Size;
@@ -275,7 +275,7 @@ public sealed unsafe class FrameProcessor : IDisposable
             Adjust1 = new Vector4((float)settings.Brightness, _lutView is null ? 0 : (float)Math.Clamp(settings.LutAmount, 0, 1), _lutSize, (float)settings.Vibrance),
             WhiteBalance = WhiteBalanceGains(settings.Temperature, settings.Tint),
         };
-        _context.UpdateSubresource(ref constants, _developBuffer);
+        _context.UpdateSubresource(in constants, _developBuffer);
 
         _context.OMSetRenderTargets(_programTarget!, null);
         _context.RSSetViewport(0, 0, ProgramWidth, ProgramHeight, 0, 1);
@@ -406,7 +406,7 @@ public sealed unsafe class FrameProcessor : IDisposable
         EnsureVirtualCameraTargets(width, height, request.Format);
 
         var constants = new OutputConstants { Map = OutputMap(width, height, fill) };
-        _context.UpdateSubresource(ref constants, _outputBuffer);
+        _context.UpdateSubresource(in constants, _outputBuffer);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.IASetInputLayout(null);
         _context.VSSetShader(_vsFullscreen);
@@ -546,7 +546,7 @@ public sealed unsafe class FrameProcessor : IDisposable
                 (Environment.TickCount64 - _startTicks) / 1000f, settings.ShowVerticalGuide ? 1 : 0),
             Size = new Vector4(ProgramWidth, ProgramHeight, 1f / ProgramWidth, 1f / ProgramHeight),
         };
-        _context.UpdateSubresource(ref constants, _previewBuffer);
+        _context.UpdateSubresource(in constants, _previewBuffer);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.IASetInputLayout(null);
         _context.VSSetShader(_vsFullscreen);
@@ -588,7 +588,7 @@ public sealed unsafe class FrameProcessor : IDisposable
         using (staging)
         {
             var constants = new OutputConstants { Map = new Vector4(1, 1, 0, 0) };
-            _context.UpdateSubresource(ref constants, _outputBuffer);
+            _context.UpdateSubresource(in constants, _outputBuffer);
             _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
             _context.IASetInputLayout(null);
             _context.VSSetShader(_vsFullscreen);

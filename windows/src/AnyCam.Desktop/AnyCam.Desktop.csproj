@@ -9,12 +9,17 @@
     <AssemblyName>AnyCam</AssemblyName>
     <RootNamespace>AnyCam.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AnyCam.ico</ApplicationIcon>
     <!-- WPF Fluent theme (ThemeMode) is marked experimental. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AnyCam.ico" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:AnyCam.Desktop.Controls"
         Title="AnyCam" Width="1360" Height="860" MinWidth="1040" MinHeight="660"
+        Icon="Assets/AnyCam.ico"
         Background="{StaticResource Bg0}" Foreground="{StaticResource Text}"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
         UseLayoutRounding="True">
