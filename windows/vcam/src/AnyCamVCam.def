@@ -1,0 +1,9 @@
+LIBRARY AnyCamVCam
+EXPORTS
+    DllCanUnloadNow PRIVATE
+    DllGetClassObject PRIVATE
+    DllRegisterServer PRIVATE
+    DllUnregisterServer PRIVATE
+    AnyCamVCam_Register
+    AnyCamVCam_Remove
+    AnyCamVCam_GetRegistration
