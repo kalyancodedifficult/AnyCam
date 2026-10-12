@@ -496,6 +496,9 @@
                     <TextBlock Text="{Binding RecordingTime}" Foreground="{StaticResource Live}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
                     <Button Style="{StaticResource ToolPushButton}" Margin="10,0,0,0" Content="Photo" ToolTip="Full-resolution photo from the phone camera (great for thumbnails)" Command="{Binding CapturePhotoCommand}" />
                     <Button Style="{StaticResource ToolPushButton}" Margin="6,0,0,0" Content="Snapshot" ToolTip="Save the processed picture as PNG" Command="{Binding SaveSnapshotCommand}" />
+                    <ToggleButton Style="{StaticResource ToolToggle}" Margin="6,0,0,0" Content="Torch" IsChecked="{Binding Camera.TorchOn}" IsEnabled="{Binding Camera.CanUseTorch}"
+                                  ToolTipService.ShowOnDisabled="True"
+                                  ToolTip="Turns the iPhone's flash on as a steady light. Set its brightness in Camera › More. The front camera has no flash: use 0.5× or 1×." />
                 </StackPanel>
 
                 <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis">

@@ -51,7 +51,7 @@ public sealed partial class CameraViewModel : ObservableObject
     public ObservableCollection<string> StabilizationModes { get; } = ["off"];
     public string[] Shutters { get; } = ShutterOptions.Select(o => o.Label).ToArray();
 
-    [ObservableProperty] private bool _isConnected;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanUseTorch))] private bool _isConnected;
     [ObservableProperty] private CameraInfo? _selectedLens;
     [ObservableProperty] private string _resolution;
     [ObservableProperty] private int _frameRate;
@@ -84,7 +84,7 @@ public sealed partial class CameraViewModel : ObservableObject
     [ObservableProperty] private string _wbReadout = "";
 
     [ObservableProperty] private double _torch;
-    [ObservableProperty] private bool _hasTorch;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanUseTorch))] private bool _hasTorch;
     [ObservableProperty] private string _stabilization = "off";
     [ObservableProperty] private bool _hdr;
     [ObservableProperty] private bool _lowLightBoost;
@@ -98,6 +98,22 @@ public sealed partial class CameraViewModel : ObservableObject
     public string TemperatureText => $"{Temperature:0} K";
     public string TintText => Tint == 0 ? "0" : $"{Tint:+0;-0}";
     public string TorchText => Torch <= 0.01 ? "Off" : $"{Torch:P0}";
+
+    /// <summary>The current lens has a light (the front camera doesn't).</summary>
+    public bool CanUseTorch => IsConnected && HasTorch;
+
+    /// <summary>Quick on/off for the torch: turns back on at the last brightness set with the slider.</summary>
+    public bool TorchOn
+    {
+        get => Torch > 0.01;
+        set
+        {
+            if (value != TorchOn)
+                Torch = value ? _lastTorchLevel : 0;
+        }
+    }
+
+    private double _lastTorchLevel = 0.5;
 
     // ---------------------------------------------------------------------------------------
     // Applying phone state to the UI
@@ -473,7 +489,10 @@ public sealed partial class CameraViewModel : ObservableObject
 
     partial void OnTorchChanged(double value)
     {
+        if (value > 0.01)
+            _lastTorchLevel = value;
         OnPropertyChanged(nameof(TorchText));
+        OnPropertyChanged(nameof(TorchOn));
         Send("torch", ("torch", Math.Round(value, 2)));
     }
 
