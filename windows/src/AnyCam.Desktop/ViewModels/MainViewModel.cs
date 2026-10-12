@@ -35,6 +35,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _engine = new MediaEngine();
         _session = new CameraSession(_engine) { PhotoFolder = settings.PhotoFolder, PreferredConfig = settings.Stream };
         _discovery = new DeviceDiscovery();
+        _session.AvailableEndpoints = () => _discovery.Endpoints;
 
         Camera = new CameraViewModel(_session, settings);
         Picture = new PictureViewModel(_engine, settings);
@@ -192,8 +193,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         // Only phones that are actually discovered right now (USB or Bonjour), never a remembered manual IP
         // that may be stale: those reconnect forever and would block connecting to the real phone.
         var discovered = _discovery.Endpoints;
+        var lastPhoneId = _settings.LastPhoneId;
         var target = discovered.FirstOrDefault(d => d.Key == _settings.LastDeviceKey)
-                     ?? (discovered.Count(d => d is UsbEndpoint) == 1 ? discovered.First(d => d is UsbEndpoint) : null);
+                     ?? (discovered.Count(d => d is UsbEndpoint) == 1 ? discovered.First(d => d is UsbEndpoint) : null)
+                     // The last phone on Wi‑Fi, e.g. it was on USB last time and the cable is unplugged now.
+                     ?? discovered.FirstOrDefault(d => d is NetworkEndpoint { CameraId: { Length: > 0 } id } && id == lastPhoneId);
         if (target is not null)
         {
             SelectedDevice = target;
@@ -381,6 +385,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         IsConnected = status == SessionStatus.Connected;
         IsActive = status != SessionStatus.Idle;
         ConnectButtonText = status == SessionStatus.Idle ? "Connect" : "Disconnect";
+
+        if (IsConnected && _session.Hello?.Id is { Length: > 0 } phoneId)
+            _settings.LastPhoneId = phoneId;
+        // Show the transport actually in use: the session may have moved from USB to Wi‑Fi (or back).
+        if (_session.Endpoint is { } current && SelectedDevice?.Key != current.Key &&
+            Devices.FirstOrDefault(d => d.Key == current.Key) is { } match)
+            SelectedDevice = match;
 
         var name = _session.Hello?.Name ?? _session.Endpoint?.DisplayName ?? "phone";
         switch (status)

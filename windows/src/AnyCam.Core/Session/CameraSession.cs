@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
 using System.Reflection;
@@ -40,10 +41,13 @@ public sealed class CameraSession : IAsyncDisposable
     private readonly MediaEngine _engine;
     private readonly AudioPlayback _audio = new();
     private readonly object _lock = new();
+    private readonly object _runLock = new();
+    private readonly ConcurrentDictionary<string, string> _usbPhoneIds = new(); // USB serial number → phone id (from hello)
     private JsonObject _stateJson = new();
     private CameraConnection? _connection;
     private CancellationTokenSource? _runCts;
     private Task? _runTask;
+    private volatile string? _phoneId; // the phone the current run is talking to, once known
     private Mp4Recorder? _recorder;
     private AudioOutputSettings _audioSettings = new();
     private bool _virtualCameraLive;
@@ -79,6 +83,12 @@ public sealed class CameraSession : IAsyncDisposable
 
     /// <summary>Configuration requested on every (re)connect; null lets the phone use its own defaults.</summary>
     public StreamConfig? PreferredConfig { get; set; }
+
+    /// <summary>
+    /// Phones the PC can reach right now (USB and Wi‑Fi). When set, a dropped connection comes back over
+    /// whichever transport still reaches the same phone, e.g. Wi‑Fi after the cable is unplugged.
+    /// </summary>
+    public Func<IReadOnlyList<CameraEndpoint>>? AvailableEndpoints { get; set; }
 
     /// <summary>Folder for photos taken with <see cref="CapturePhoto"/>.</summary>
     public string PhotoFolder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "AnyCam");
@@ -124,39 +134,55 @@ public sealed class CameraSession : IAsyncDisposable
 
     public void Connect(CameraEndpoint endpoint)
     {
-        _ = DisconnectAsync().ContinueWith(_ =>
+        lock (_runLock)
         {
+            // Replace the current run atomically and start the new one only once the old one has stopped:
+            // two overlapping runs would leave one reconnecting forever where Disconnect can't reach it.
+            var previousCts = _runCts;
+            var previousTask = _runTask;
+            previousCts?.Cancel();
+
+            var cts = new CancellationTokenSource();
+            _runCts = cts;
             Endpoint = endpoint;
-            _runCts = new CancellationTokenSource();
-            _runTask = Task.Run(() => RunAsync(endpoint, _runCts.Token));
-        }, TaskScheduler.Default);
+            _phoneId = PhoneIdOf(endpoint);
+            _runTask = Task.Run(async () =>
+            {
+                if (previousTask is not null)
+                    await previousTask.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                previousCts?.Dispose();
+                await RunAsync(endpoint, cts.Token).ConfigureAwait(false);
+            });
+            SetStatus(SessionStatus.Connecting, null); // not Idle from here on, so callers can't start a second run
+        }
     }
 
     public async Task DisconnectAsync()
     {
-        var cts = _runCts;
-        var task = _runTask;
-        _runCts = null;
-        _runTask = null;
+        CancellationTokenSource? cts;
+        Task? task;
+        lock (_runLock)
+        {
+            cts = _runCts;
+            task = _runTask;
+            _runCts = null;
+            _runTask = null;
+        }
         if (cts is null)
             return;
         cts.Cancel();
         if (_connection is { } connection)
             await connection.DisposeAsync().ConfigureAwait(false);
         if (task is not null)
-        {
-            try
-            {
-                await task.ConfigureAwait(false);
-            }
-            catch
-            {
-                // reported through status
-            }
-        }
+            await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing); // failures are reported through status
         cts.Dispose();
-        Endpoint = null;
-        SetStatus(SessionStatus.Idle, null);
+        lock (_runLock)
+        {
+            if (_runCts is not null)
+                return; // a newer Connect took over while this one was stopping
+            Endpoint = null;
+            SetStatus(SessionStatus.Idle, null);
+        }
     }
 
     private async Task RunAsync(CameraEndpoint endpoint, CancellationToken token)
@@ -164,6 +190,27 @@ public sealed class CameraSession : IAsyncDisposable
         var attempt = 0;
         while (!token.IsCancellationRequested)
         {
+            if (attempt > 0 && AvailableEndpoints is { } available)
+            {
+                // The phone may still be reachable another way (e.g. Wi‑Fi after the USB cable was unplugged).
+                var next = ChooseReconnectEndpoint(endpoint, _phoneId, available(), _usbPhoneIds);
+                if (next.Key != endpoint.Key)
+                {
+                    endpoint = next;
+                    StatusMessage = next.Kind switch
+                    {
+                        TransportKind.WiFi => "switching to Wi‑Fi",
+                        TransportKind.Usb => "switching to USB",
+                        _ => StatusMessage,
+                    };
+                    lock (_runLock)
+                    {
+                        if (!token.IsCancellationRequested)
+                            Endpoint = next;
+                    }
+                }
+            }
+
             SetStatus(attempt == 0 ? SessionStatus.Connecting : SessionStatus.Reconnecting, StatusMessage);
             CameraConnection? connection = null;
             try
@@ -261,6 +308,32 @@ public sealed class CameraSession : IAsyncDisposable
         RaiseChanged();
     }
 
+    private string? PhoneIdOf(CameraEndpoint endpoint) => endpoint switch
+    {
+        NetworkEndpoint { CameraId: { Length: > 0 } id } => id,
+        UsbEndpoint usb when _usbPhoneIds.TryGetValue(usb.SerialNumber, out var id) => id,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Where to reconnect to the same phone: USB if it's plugged in, otherwise Wi‑Fi, otherwise
+    /// <paramref name="current"/> (it may come back). USB devices are matched through the phone id each one
+    /// reported in its hello, Wi‑Fi ones through the id in their Bonjour record.
+    /// </summary>
+    public static CameraEndpoint ChooseReconnectEndpoint(CameraEndpoint current, string? phoneId,
+        IReadOnlyList<CameraEndpoint> available, IReadOnlyDictionary<string, string> usbPhoneIds)
+    {
+        if (string.IsNullOrEmpty(phoneId))
+            return current;
+        var samePhone = available.Where(endpoint => endpoint switch
+        {
+            UsbEndpoint usb => usbPhoneIds.TryGetValue(usb.SerialNumber, out var id) && id == phoneId,
+            NetworkEndpoint network => network.CameraId == phoneId,
+            _ => false,
+        }).ToList();
+        return samePhone.FirstOrDefault(e => e.Kind == TransportKind.Usb) ?? samePhone.FirstOrDefault() ?? current;
+    }
+
     private void UpdateThroughput(CameraConnection connection)
     {
         var now = Environment.TickCount64;
@@ -285,6 +358,12 @@ public sealed class CameraSession : IAsyncDisposable
             {
                 case "hello":
                     Hello = message.As<CameraHello>();
+                    if (Hello?.Id is { Length: > 0 } phoneId)
+                    {
+                        _phoneId = phoneId;
+                        if (Endpoint is UsbEndpoint usb)
+                            _usbPhoneIds[usb.SerialNumber] = phoneId;
+                    }
                     if (Hello is { Proto: > 0 } hello && hello.Proto != ProtocolConstants.Version)
                         Notify($"The phone app speaks protocol v{hello.Proto}, this PC app v{ProtocolConstants.Version}. Update both to the same release.");
                     break;

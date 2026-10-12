@@ -15,6 +15,8 @@ public sealed class AppSettings
     private static string FilePath => Path.Combine(Folder, "settings.json");
 
     public string? LastDeviceKey { get; set; }
+    /// <summary>The last phone's own id, to find it again over another transport (USB ↔ Wi‑Fi).</summary>
+    public string? LastPhoneId { get; set; }
     public string? LastManualHost { get; set; }
     public bool AutoConnect { get; set; } = true;
 
